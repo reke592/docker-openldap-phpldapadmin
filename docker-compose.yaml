@@ -1,0 +1,109 @@
+services:
+  # PHP LDAP Admin
+  ldapadmin.dev.mylocal:
+    image: phpldapadmin
+    ports:
+      - "6443:443"
+      - "8000:80"
+    volumes:
+      - ./test/phpldapadmin/conf/config.php:/etc/phpldapadmin/config.php
+      - ./ssl/roots:/usr/local/share/ca-certificates
+      - ./ssl/roots:/etc/openldap/certs
+      - phpldapadmin_sessions:/var/lib/php/sessions
+
+  # LDAP Primary
+  ldap1.dev.mylocal:
+    image: openldap
+    volumes:
+      # *** Builtin LDAP client default configuration ***
+      - ./test/primary/conf/ldap.conf:/etc/ldap/ldap.conf
+      # *** LDAPS ***
+      - ./ssl/roots/reke_ca_cert.crt:/etc/ldap/ssl/roots/ca_cert.crt
+      - ./ssl/certs/reke/_.dev.mylocal_cert.pem:/etc/ldap/ssl/ldap_cert.pem
+      - ./ssl/certs/reke/ldap_cert_key.pem:/etc/ldap/ssl/ldap_cert_key.pem
+      # *** data directories ***
+      - ldap-data:/var/lib/ldap
+      - slapd-data:/etc/ldap/slapd.d
+      - ldap-backup:/mnt/backup
+    ports:
+      - 636:636
+      - 389:389
+    restart: always
+
+  # LDAP Replica
+  ldap2.dev.mylocal:
+    image: openldap
+    depends_on:
+      - ldap1.dev.mylocal
+    environment:
+      # *** REPLICA Environment ***
+      # a unique 3 digits id value assigned to each replica
+      - REPLICA_ID=100
+      # the user account we created in primary LDAP using the create-replicator.sh
+      - REPLICATOR_DN="cn=replicator,dc=local,dc=lan"
+      # the searchase target of replication
+      - REPLICA_SEARCHBASE="dc=local,dc=lan"
+      - REPLICA_PROVIDER_HOST=ldap://ldap1.dev.mylocal
+    volumes:
+      # *** Builtin LDAP client default configuration ***
+      - ./test/replica/conf/ldap.conf:/etc/ldap/ldap.conf
+      # *** LDAPS ***
+      - ./ssl/roots/reke_ca_cert.crt:/etc/ldap/ssl/roots/ca_cert.crt
+      - ./ssl/certs/reke/_.dev.mylocal_cert.pem:/etc/ldap/ssl/ldap_cert.pem
+      - ./ssl/certs/reke/ldap_cert_key.pem:/etc/ldap/ssl/ldap_cert_key.pem
+      # *** data directories ***
+      - ldap-replica-data:/var/lib/ldap
+      - slapd-replica-data:/etc/ldap/slapd.d
+      - ldap-replica-backup:/mnt/backup
+    ports:
+      - 6366:636
+      - 3899:389
+    restart: always
+
+volumes:
+  # for phpldapadmin session data
+  phpldapadmin_sessions:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "./test/phpldapadmin/data"
+  # primary test
+  ldap-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "./test/primary/data/ldap"
+  slapd-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "./test/primary/data/slapd"
+  ldap-backup:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "./test/primary/backup"
+
+  # replica test
+  ldap-replica-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "./test/replica/data/ldap"
+  slapd-replica-data:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "./test/replica/data/slapd"
+  ldap-replica-backup:
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "./test/replica/backup"

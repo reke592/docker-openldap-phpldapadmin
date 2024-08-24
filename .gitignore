@@ -1,0 +1,10 @@
+slapd-preseed.txt
+
+**/logs
+**/data
+**/tmp
+**/ldifs
+**/backup
+**/ssl/*
+
+!ssl/*.sh
